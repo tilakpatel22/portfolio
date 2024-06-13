@@ -2,14 +2,14 @@ vCard - Personal Portfolio
 
 # sidebar
 
-alt = Richard hanrick
-Richard hanrick
+alt = Tilak Patel
+Tilak Patel
 Web developer
 
 Show Contacts
 
 Email
-richard@example.com
+nikultilak@gmail.com
 
 Phone
 +1 (213) 352-2795
