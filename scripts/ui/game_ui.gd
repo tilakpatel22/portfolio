@@ -63,6 +63,27 @@ func _ready() -> void:
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(_fade)
 	_build_hud()
+	_studio_intro()
+
+
+## Gamecept Studios card: continues the boot splash for a moment, then fades into the game.
+func _studio_intro() -> void:
+	var card := ColorRect.new()
+	card.color = Color("0b2545")
+	card.set_anchors_preset(Control.PRESET_FULL_RECT)
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	var logo := TextureRect.new()
+	logo.texture = load("res://assets/logo/gamecept_boot.png")
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.custom_minimum_size = Vector2(1000, 760)
+	card.add_child(logo)
+	_root.add_child(card)
+	_corner(card, logo, Control.PRESET_CENTER, Vector2.ZERO)
+	var t := create_tween()
+	t.tween_interval(1.4)
+	t.tween_property(card, "modulate:a", 0.0, 0.5)
+	t.tween_callback(card.queue_free)
 
 
 func _process(delta: float) -> void:

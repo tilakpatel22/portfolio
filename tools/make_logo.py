@@ -152,6 +152,22 @@ def wordmark(cx, top, scale=1.0):
     return t1 + rib + t2, max(w1, w2 + 200 * scale)
 
 
+def studio(cx, cy):
+    """Gamecept Studios mark: coral badge with a G monogram and a play notch, plus wordmark."""
+    b = 120
+    parts, gw = text_paths("G", 190)
+    sc = 190 / UPM
+    g = "".join(f'<path transform="translate({cx - gw / 2 + dx:.1f} {cy + 66:.1f}) scale({sc:.5f} {-sc:.5f})" d="{d}"/>' for dx, d in parts)
+    badge = f'''
+  <rect x="{cx - b + 6}" y="{cy - b + 14}" width="{2 * b}" height="{2 * b}" rx="56" fill="#000000" opacity="0.25"/>
+  <rect x="{cx - b}" y="{cy - b}" width="{2 * b}" height="{2 * b}" rx="56" fill="{CORAL}" stroke="#ffffff" stroke-width="10"/>
+  <g fill="#ffffff">{g}</g>
+  <path d="M {cx + 70} {cy - 88} l 30 18 l -30 18 z" fill="{SUN}" stroke="{NAVY}" stroke-width="6" stroke-linejoin="round"/>'''
+    w1, _ = text_svg("GAMECEPT", cx, cy + 290, 150, "#ffffff", NAVY, 0, None, 0.04)
+    w2, _ = text_svg("STUDIOS", cx, cy + 380, 62, TEAL, NAVY, 0, None, 0.42)
+    return badge + w1 + w2
+
+
 def svg(w, h, body, bg=""):
     return f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">{bg}{body}</svg>'
 
@@ -180,6 +196,11 @@ def main():
     horizontal = svg(2000, 580, emblem(330, 290, 235) + hw)
     save("assets/logo/logo_horizontal.svg", horizontal)
     save("assets/logo/logo_horizontal.png", horizontal, 1600)
+
+    navy_bg = (f'<defs><linearGradient id="nb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b2545"/>'
+               f'<stop offset="1" stop-color="#0e4a6e"/></linearGradient></defs><rect width="1920" height="1080" fill="url(#nb)"/>')
+    save("assets/logo/gamecept_splash.png", svg(1920, 1080, studio(960, 410), navy_bg), 1920)
+    save("assets/logo/gamecept_boot.png", svg(1000, 760, studio(500, 250)), 1000)
 
     sea_bg = (f'<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#36d1c4"/>'
               f'<stop offset="1" stop-color="#0a5f8a"/></linearGradient></defs><rect width="512" height="512" fill="url(#bg)"/>')

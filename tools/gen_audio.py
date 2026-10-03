@@ -215,7 +215,10 @@ def write(name, data, stereo=True, trim=True):
         end = min(len(data), int(np.nonzero(level > 0.002)[0][-1] + 0.08 * SR))
         data = data[:end].copy()
         data[-int(0.05 * SR):] *= np.linspace(1, 0, int(0.05 * SR))[:, None] if data.ndim == 2 else np.linspace(1, 0, int(0.05 * SR))
-    sf.write(os.path.join(OUT, name + ".ogg"), data.astype(np.float32), SR, format="OGG", subtype="VORBIS")
+    # Size-tuned Vorbis: long music loops compress harder than short effects.
+    level = 0.8 if len(data) > 20 * SR else 0.7
+    sf.write(os.path.join(OUT, name + ".ogg"), data.astype(np.float32), SR, format="OGG", subtype="VORBIS",
+             compression_level=level)
     print(f"{name}.ogg  {len(data) / SR:5.1f}s")
 
 
