@@ -23,8 +23,11 @@ static func generate(level: int) -> LevelData:
 	for attempt in MAX_ATTEMPTS:
 		var data := _try(level, attempt, false)
 		if data:
+			data.attempts = attempt + 1
 			return data
-	return _try(level, 0, true)
+	var fallback := _try(level, 0, true)
+	fallback.attempts = -1
+	return fallback
 
 
 static func _try(level: int, attempt: int, fallback: bool) -> LevelData:

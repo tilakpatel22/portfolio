@@ -17,6 +17,7 @@ const PICK_RADIUS := 1.0
 const POINT_STEP := 0.3
 const PATH_CLEARANCE := 0.3
 const MAX_PATH_POINTS := 500
+const HARBOR_ZONE := 2.6
 const CALM_DURATION := 4.0
 const CALM_COOLDOWN := 18.0
 const CALM_FACTOR := 0.35
@@ -32,6 +33,7 @@ var close_calls := 0
 var calm_left := 0.0
 var calm_cool := 0.0
 var revive_used := false
+var grace := 0.0   # seconds of collision immunity after a revive / lifebuoy
 var _crashed: Array[Vessel] = []
 
 var _rng := RandomNumberGenerator.new()
@@ -40,6 +42,8 @@ var _time := 0.0
 var _gate_used := {}
 var _last_gate := -1
 var _pending := 0
+var _pending_gates := {}
+var _epoch := 0
 var _touches := {}
 var _tutorial_sent := false
 
@@ -59,12 +63,15 @@ func load_level(level: int, attract := false) -> void:
 	_rng.seed = data.rng_seed
 	docked = 0
 	_time = 0.0
+	_epoch += 1
 	_pending = 0
+	_pending_gates.clear()
 	_gate_used.clear()
 	_last_gate = -1
 	_tutorial_sent = false
 	close_calls = 0
 	revive_used = false
+	grace = 0.0
 	_crashed.clear()
 	calm_left = 0.0
 	calm_cool = 0.0
@@ -85,11 +92,21 @@ func _process(dt: float) -> void:
 		return
 	var sim := _calm_step(dt)
 	_time += sim
+	grace = maxf(grace - sim, 0.0)
 	_director(sim)
+	var bounds := visible_rect.intersection(LevelData.PLAYFIELD.grow(1.0))
+	# Sub-step on frame hitches so fast ships can never tunnel through each other.
+	var steps := clampi(ceili(sim / (1.0 / 50.0)), 1, 4)
+	for _s in steps:
+		for v in vessels:
+			v.tick(sim / steps, data.grid, data.current, bounds)
+		if mode == Mode.PLAY:
+			_check_collisions()
+			if mode != Mode.PLAY:
+				return
 	for v in vessels:
-		v.tick(sim, data.grid, data.current, visible_rect.intersection(LevelData.PLAYFIELD.grow(1.0)))
+		v.update_visuals(dt)
 	if mode == Mode.PLAY:
-		_check_collisions()
 		_tutorial()
 	else:
 		_cull_attract()
@@ -161,10 +178,13 @@ func _pick_gate(exclude: Array[int]) -> int:
 	for i in data.gates.size():
 		if exclude.has(i):
 			continue
+		if _pending_gates.has(i):
+			continue
 		var g: Vector2 = data.gates[i]["pos"]
 		var blocked := false
 		for v in vessels:
-			if v.pos.distance_to(g) < 4.5:
+			# A lane stays reserved until its last ship is well clear (no rear-end entries).
+			if v.pos.distance_to(g) < 4.5 or (v.gate == i and v.pos.distance_to(g) < 7.0 + v.half_len):
 				blocked = true
 				break
 		if blocked:
@@ -179,20 +199,24 @@ func _pick_gate(exclude: Array[int]) -> int:
 
 
 func _queue_spawn(gate: int, type: int) -> void:
-	_gate_used[gate] = _time + 99.0
 	_last_gate = gate
 	_pending += 1
+	_pending_gates[gate] = true
 	var g: Dictionary = data.gates[gate]
+	var epoch := _epoch
 	var warn := 0.0 if mode == Mode.ATTRACT else data.warn_time
 	if warn > 0.0:
 		spawn_warning.emit(g["pos"], g["dir"], VesselData.port_color(VesselData.port_of(type)), warn)
 		Audio.play("warning")
 	await get_tree().create_timer(warn, false).timeout
+	if epoch != _epoch:
+		return   # level was reloaded while this ship was waiting to enter
 	_pending -= 1
+	_pending_gates.erase(gate)
 	_gate_used[gate] = _time
 	if mode == Mode.OVER or data == null:
 		return
-	_spawn(type, g)
+	_spawn(type, g).gate = gate
 
 
 func _spawn(type: int, g: Dictionary) -> Vessel:
@@ -207,6 +231,7 @@ func _spawn(type: int, g: Dictionary) -> Vessel:
 	add_child(v)
 	v.setup(type, start - dir * k, dir, data.speed_mult if mode == Mode.PLAY else 1.0)
 	v.docked.connect(_on_docked)
+	v.can_surface = _can_surface
 	vessels.append(v)
 	if mode == Mode.PLAY:
 		var big := type in [VesselData.Type.CRUISE, VesselData.Type.TANKER, VesselData.Type.CONTAINER, VesselData.Type.FERRY]
@@ -234,10 +259,12 @@ func _check_collisions() -> void:
 			var b := vessels[j]
 			if b.state != Vessel.State.SAILING or b.submerged:
 				continue
+			if _same_harbor(a, b):
+				continue
 			var cb := b.capsule()
 			var pts := Geometry2D.get_closest_points_between_segments(ca[0], ca[1], cb[0], cb[1])
 			var gap: float = pts[0].distance_to(pts[1]) - ca[2] - cb[2]
-			if gap < 0.0 and a.entered and b.entered:
+			if gap < 0.0 and a.entered and b.entered and grace <= 0.0:
 				_crash(a, b, (pts[0] + pts[1]) * 0.5)
 				return
 			if gap < 0.9:
@@ -250,6 +277,24 @@ func _check_collisions() -> void:
 	Audio.set_tension(1.0 if not warned.is_empty() else 0.0)
 
 
+func _can_surface(sub: Vessel) -> bool:
+	var c := sub.capsule()
+	for v in vessels:
+		if v == sub or v.state != Vessel.State.SAILING or v.submerged:
+			continue
+		var o := v.capsule()
+		var pts := Geometry2D.get_closest_points_between_segments(c[0], c[1], o[0], o[1])
+		if pts[0].distance_to(pts[1]) - c[2] - o[2] < 1.0:
+			return false
+	return true
+
+
+## Ships bound for the same port are sequenced by the harbour inside its zone.
+func _same_harbor(a: Vessel, b: Vessel) -> bool:
+	return a.target != null and a.target == b.target \
+		and a.pos.distance_to(a.target.dock) < HARBOR_ZONE and b.pos.distance_to(b.target.dock) < HARBOR_ZONE
+
+
 func _crash(a: Vessel, b: Vessel, at: Vector2) -> void:
 	if GameState.lifebuoys > 0:
 		_rescue(a, b, at)
@@ -257,14 +302,17 @@ func _crash(a: Vessel, b: Vessel, at: Vector2) -> void:
 	mode = Mode.OVER
 	_crashed = [a, b]
 	Audio.set_tension(0.0)
+	Audio.set_calm(false)
 	a.set_warning(true)
 	b.set_warning(true)
 	add_child(Effects.explosion(Vector3(at.x, 0.2, at.y)))
 	Audio.play("crash")
 	GameState.vibrate(300)
 	crashed.emit()
+	var epoch := _epoch
 	await get_tree().create_timer(1.3).timeout
-	level_lost.emit()
+	if epoch == _epoch:   # player may have left (Home) or restarted meanwhile
+		level_lost.emit()
 
 
 func can_revive() -> bool:
@@ -274,16 +322,15 @@ func can_revive() -> bool:
 ## Rewarded continue (once per level): wreckage is cleared and play resumes.
 func revive() -> void:
 	revive_used = true
-	for v in _crashed:
-		vessels.erase(v)
-		if is_instance_valid(v):
-			v.queue_free()
+	_clear_wreck(_crashed)
 	_crashed.clear()
+	grace = 1.5
 	_touches.clear()
 	_refresh_port_highlights()
 	for v in vessels:
 		v.set_warning(false)
 	_spawn_timer = maxf(_spawn_timer, 2.0)
+	Audio.set_calm(calm_left > 0.0)
 	mode = Mode.PLAY
 
 
@@ -297,13 +344,31 @@ func _rescue(a: Vessel, b: Vessel, at: Vector2) -> void:
 	GameState.vibrate(120)
 	crashed.emit()
 	lifebuoy_used.emit()
-	for v in [a, b]:
+	_clear_wreck([a, b])
+	grace = 1.5
+	_refresh_port_highlights()
+
+
+## Removes crashed ships plus anything tangled up with them (so play resumes cleanly).
+func _clear_wreck(wreck: Array) -> void:
+	var gone: Array[Vessel] = []
+	for v in vessels:
+		if wreck.has(v):
+			gone.append(v)
+			continue
+		for w in wreck:
+			if is_instance_valid(w) and v.pos.distance_to(w.pos) < v.half_len + w.half_len + 0.3:
+				gone.append(v)
+				break
+	for v in gone:
 		vessels.erase(v)
 		for i in _touches.keys():
 			if _touches[i] == v:
 				_touches.erase(i)
 		v.queue_free()
-	_refresh_port_highlights()
+	for v in wreck:
+		if is_instance_valid(v) and not gone.has(v):
+			v.queue_free()
 
 
 func _on_docked(v: Vessel) -> void:
@@ -322,9 +387,12 @@ func _on_docked(v: Vessel) -> void:
 	if docked >= data.target:
 		mode = Mode.OVER
 		Audio.set_tension(0.0)
+		Audio.set_calm(false)
 		Audio.stinger("win")
+		var epoch := _epoch
 		await get_tree().create_timer(0.8).timeout
-		level_won.emit()
+		if epoch == _epoch:
+			level_won.emit()
 
 
 func _tutorial() -> void:
@@ -382,7 +450,7 @@ func _touch_move(index: int, p: Vector2) -> void:
 		return
 	if _try_snap(v, p):
 		return
-	if not data.grid.segment_clear(last, p, PATH_CLEARANCE):
+	if not data.grid.segment_clear(last, p, _clearance(v, last)):
 		return
 	var steps := int(last.distance_to(p) / POINT_STEP)
 	for s in range(1, steps + 1):
@@ -390,20 +458,32 @@ func _touch_move(index: int, p: Vector2) -> void:
 		_smooth_tail(v)
 
 
-## Snap generously: near the pad, the pier, or the port's landmark on the island.
+## Snap generously (near the pad, the pier, or the port's landmark) to the nearest matching port.
 func _try_snap(v: Vessel, p: Vector2) -> bool:
+	var best: Port
+	var best_d := INF
 	for port in world.ports:
 		if not port.accepts(v.port):
 			continue
-		var near := p.distance_to(port.dock + port.dir * 0.35) < Port.SNAP_RADIUS \
-			or p.distance_to(port.coast - port.dir * 0.5) < 1.1
-		if near and data.grid.segment_clear(v.last_point(), port.approach(), PATH_CLEARANCE):
-			v.snap_to(port)
-			Audio.play("link")
-			GameState.vibrate(15)
-			_refresh_port_highlights()
-			return true
-	return false
+		var d := minf(p.distance_to(port.dock + port.dir * 0.35) / Port.SNAP_RADIUS,
+			p.distance_to(port.coast - port.dir * 0.5) / 1.1)
+		if d < 1.0 and d < best_d \
+				and data.grid.segment_clear(v.last_point(), port.approach(), _clearance(v, v.last_point())):
+			best_d = d
+			best = port
+	if best == null:
+		return false
+	v.snap_to(best)
+	Audio.play("link")
+	GameState.vibrate(15)
+	_refresh_port_highlights()
+	return true
+
+
+## Paths keep the whole hull off the beach (wide ships need more room), but are never
+## stricter than the water the path starts from, so a ship hugging a coast can always be routed.
+func _clearance(v: Vessel, from: Vector2) -> float:
+	return minf(maxf(PATH_CLEARANCE, v.half_w * 0.85), data.grid.distance(from) - 0.01)
 
 
 ## Light low-pass on the newest points so finger jitter never shows up as zig-zags.

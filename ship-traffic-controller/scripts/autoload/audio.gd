@@ -6,6 +6,7 @@ const SFX := ["click", "select", "link", "dock", "crash", "warning", "horn_big",
 const STINGERS := ["win", "lose", "newship", "reward", "start"]
 const MUSIC := ["menu", "sea1", "sea2", "sea3", "rush"]
 const MUSIC_DB := -7.0
+const GAIN := {"click": -9.0, "error": -6.0, "warning": -3.0, "select": -3.0, "horn_big": -2.0, "seagull": -4.0}
 
 var _streams := {}
 var _players: Array[AudioStreamPlayer] = []
@@ -83,7 +84,7 @@ func play(sfx: String, pitch_jitter := 0.06, pitch := 1.0, volume_db := 0.0) -> 
 	var p := _players[_next]
 	_next = (_next + 1) % _players.size()
 	p.stream = stream
-	p.volume_db = volume_db
+	p.volume_db = volume_db + GAIN.get(sfx, 0.0)
 	p.pitch_scale = pitch * (1.0 + randf_range(-pitch_jitter, pitch_jitter))
 	p.play()
 

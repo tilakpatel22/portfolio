@@ -157,6 +157,16 @@ func _finish() -> void:
 	_load("reward")
 
 
+## Watchdog: if the app is back in front but the SDK never reported the ad closing,
+## resume anyway so the game can never get stuck behind a lost callback.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_RESUMED and _showing != "":
+		var kind := _showing
+		await get_tree().create_timer(2.0, true, false, true).timeout
+		if _showing == kind:
+			_finish()
+
+
 func privacy_options_required() -> bool:
 	return _enabled and UserMessagingPlatform.consent_information.get_privacy_options_requirement_status() \
 		== ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED

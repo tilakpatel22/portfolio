@@ -12,6 +12,7 @@ var _playing := false
 
 func _ready() -> void:
 	get_tree().set_auto_accept_quit(false)
+	get_tree().set_quit_on_go_back(false)   # Android back pauses / closes panels instead of quitting
 	_setup_scene()
 	ui = GameUI.new()
 	add_child(ui)
@@ -110,6 +111,8 @@ func _on_lost() -> void:
 func _on_revive() -> void:
 	Ads.show_rewarded(func(earned: bool) -> void:
 		if earned and game.can_revive():
+			get_tree().paused = false
+			Audio.set_muffled(false)
 			game.revive()
 			_playing = true
 			ui.hide_overlays()
@@ -139,7 +142,7 @@ func _watch_reward() -> void:
 
 
 func pause() -> void:
-	if _playing and not get_tree().paused:
+	if _playing and game.mode == Game.Mode.PLAY and not get_tree().paused:
 		get_tree().paused = true
 		Audio.set_muffled(true)
 		ui.show_pause()

@@ -6,6 +6,7 @@ const PLAYFIELD := Rect2(-16.0, -11.0, 32.0, 22.0)
 
 var level := 1
 var rng_seed := 0
+var attempts := 0                        # generation attempts used; -1 = fallback map
 var difficulty := 0.0
 var archetype := "island"
 var target := 5

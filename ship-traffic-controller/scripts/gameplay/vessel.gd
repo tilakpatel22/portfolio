@@ -25,6 +25,9 @@ var target: Port
 var entered := false
 var submerged := false
 var warning := false
+var gate := -1
+var can_surface := Callable()   # set by Game: surfacing is delayed while another hull is on top
+var _slide := 0.0                 # which way to slide along a coast (sticky)
 
 var _model: MeshInstance3D
 var _ring_mat := ShaderMaterial.new()
@@ -151,11 +154,15 @@ func tick(dt: float, grid: LandGrid, current: Vector2, bounds: Rect2) -> void:
 	if type == VesselData.Type.SUBMARINE:
 		_sub_timer -= dt
 		if _sub_timer <= 0.0:
-			set_submerged(not submerged)
-			_sub_timer = randf_range(2.8, 3.6) if submerged else randf_range(4.5, 6.5)
+			if submerged and can_surface.is_valid() and not can_surface.call(self):
+				_sub_timer = 0.25   # someone is overhead: stay down a little longer
+			else:
+				set_submerged(not submerged)
+				_sub_timer = randf_range(2.8, 3.6) if submerged else randf_range(4.5, 6.5)
 	if not path.is_empty():
 		_follow(speed * dt)
-		if path.is_empty() and target:
+		# Past the approach point the harbour takes over: slide into the berth safely.
+		if target and path.size() <= 1 and pos.distance_to(target.dock) <= 1.45:
 			_dock()
 			return
 	else:
@@ -163,8 +170,15 @@ func tick(dt: float, grid: LandGrid, current: Vector2, bounds: Rect2) -> void:
 		pos += (heading * speed + (current if entered else Vector2.ZERO)) * dt
 		if entered:
 			_push_off_land(grid)
+			_keep_in(bounds, dt)
 	if not entered and bounds.grow(-0.4).has_point(pos):
 		entered = true
+
+
+## Visual update, once per frame (simulation may run several sub-steps).
+func update_visuals(dt: float) -> void:
+	if state != State.SAILING:
+		return
 	_sync(dt)
 	_draw_path()
 
@@ -184,26 +198,62 @@ func _follow(step: float) -> void:
 			step = 0.0
 
 
+## Free sailing: screen edges push the heading back into view (they always win);
+## land ahead makes the ship slide ALONG the coast (sticky side), so it can never be
+## pinned between an island and the edge or dither left/right.
 func _steer(dt: float, grid: LandGrid, bounds: Rect2) -> void:
 	if not entered:
 		return
-	var turn := 0.0
-	var look := 1.0 + half_len
-	var clear := half_w + 0.45
-	if grid.distance(pos + heading * look) < clear or grid.distance(pos + heading * look * 0.5) < clear:
-		var l := grid.distance(pos + heading.rotated(-0.7) * look)
-		var r := grid.distance(pos + heading.rotated(0.7) * look)
-		turn = -1.0 if l > r else 1.0
-	var inner := bounds.grow(-half_len)
+	var edge := Vector2.ZERO
+	var m := half_len + speed / TURN_RATE + 0.6
+	if pos.x < bounds.position.x + m:
+		edge.x += (bounds.position.x + m - pos.x) / m
+	elif pos.x > bounds.end.x - m:
+		edge.x -= (pos.x - (bounds.end.x - m)) / m
+	if pos.y < bounds.position.y + m:
+		edge.y += (bounds.position.y + m - pos.y) / m
+	elif pos.y > bounds.end.y - m:
+		edge.y -= (pos.y - (bounds.end.y - m)) / m
+	var away := Vector2.ZERO
+	var clear := half_w + 0.6
+	for k: float in [0.5, 1.0]:
+		var probe := pos + heading * (half_len + 1.0) * k
+		var d := grid.distance(probe)
+		if d < clear:
+			away += _land_normal(grid, probe) * (clear - d) / clear
 	var desired := heading
-	if pos.x < inner.position.x and heading.x < 0.0 or pos.x > inner.end.x and heading.x > 0.0:
-		desired.x = -desired.x
-	if pos.y < inner.position.y and heading.y < 0.0 or pos.y > inner.end.y and heading.y > 0.0:
-		desired.y = -desired.y
-	if turn == 0.0 and desired != heading:
-		turn = signf(heading.angle_to(desired))
-	if turn != 0.0:
-		heading = heading.rotated(turn * TURN_RATE * dt).normalized()
+	if away != Vector2.ZERO:
+		var n := away.normalized()
+		if _slide == 0.0:
+			var ref := edge if edge != Vector2.ZERO else heading
+			_slide = 1.0 if n.orthogonal().dot(ref) >= 0.0 else -1.0
+		desired = (n.orthogonal() * _slide + n * 0.6).normalized()
+	else:
+		_slide = 0.0
+	if edge != Vector2.ZERO:
+		desired = (desired + edge * 3.0).normalized()
+	var a := heading.angle_to(desired)
+	if absf(a) < 0.0001:
+		return
+	if absf(a) > PI - 0.05:
+		a = PI   # dead ahead into a wall: commit to one side instead of dithering
+	heading = heading.rotated(clampf(a, -TURN_RATE * dt, TURN_RATE * dt)).normalized()
+
+
+## Hard limit: a free-sailing ship is always pulled back into view (faster than it can sail out).
+func _keep_in(bounds: Rect2, dt: float) -> void:
+	var inner := bounds.grow(-half_w)
+	var inside := pos.clamp(inner.position, inner.end)
+	if inside != pos:
+		pos = pos.move_toward(inside, (speed + 0.5) * dt * 1.5)
+
+
+## Direction pointing away from the nearest land (gradient of the distance field).
+func _land_normal(grid: LandGrid, p: Vector2) -> Vector2:
+	var e := 0.3
+	var g := Vector2(grid.distance(p + Vector2(e, 0)) - grid.distance(p - Vector2(e, 0)),
+		grid.distance(p + Vector2(0, e)) - grid.distance(p - Vector2(0, e)))
+	return g.normalized() if g.length_squared() > 0.0 else -heading
 
 
 func _push_off_land(grid: LandGrid) -> void:
@@ -229,11 +279,14 @@ func _sync(dt: float) -> void:
 func _dock() -> void:
 	state = State.DOCKING
 	_clear_path_mesh()
+	path.clear()
+	var berth := Vector3(target.dock.x, 0, target.dock.y) - Vector3(target.dir.x, 0, target.dir.y) * 0.2
 	var t := create_tween().set_parallel()
-	var inward := Vector3(-target.dir.x, 0, -target.dir.y) * 0.25
-	t.tween_property(self, "position", position + inward, 0.5)
-	t.tween_property(self, "scale", Vector3.ONE * 0.75, 0.5).set_delay(0.2)
-	t.tween_property(_model, "position:y", -0.6, 0.5).set_delay(0.2)
+	t.tween_property(self, "position", berth, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	var face := rotation.y + wrapf(atan2(target.dir.x, target.dir.y) - rotation.y, -PI, PI)
+	t.tween_property(self, "rotation:y", face, 0.5)
+	t.tween_property(self, "scale", Vector3.ONE * 0.75, 0.4).set_delay(0.45)
+	t.tween_property(_model, "position:y", -0.6, 0.4).set_delay(0.45)
 	t.chain().tween_callback(func() -> void:
 		state = State.GONE
 		docked.emit(self))
@@ -309,26 +362,33 @@ func _draw_path() -> void:
 	_clear_path_mesh()
 	if path.is_empty():
 		return
-	var pts := PackedVector2Array([pos])
-	pts.append_array(path)
 	_path_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 	var dist := 0.0
-	for i in pts.size() - 1:
-		var a := pts[i]
-		var b := pts[i + 1]
+	var a := pos
+	for b in path:
 		var seg := b - a
 		var l := seg.length()
 		if l < 0.0001:
 			continue
-		var n := Vector2(-seg.y, seg.x) / l * PATH_WIDTH * 0.5
-		var v := [Vector3(a.x + n.x, PATH_Y, a.y + n.y), Vector3(a.x - n.x, PATH_Y, a.y - n.y),
-			Vector3(b.x - n.x, PATH_Y, b.y - n.y), Vector3(b.x + n.x, PATH_Y, b.y + n.y)]
-		var u := [Vector2(dist, 0), Vector2(dist, 1), Vector2(dist + l, 1), Vector2(dist + l, 0)]
-		for k in [0, 1, 2, 0, 2, 3]:
-			_path_mesh.surface_set_uv(u[k])
-			_path_mesh.surface_add_vertex(v[k])
+		var n := Vector2(-seg.y, seg.x) * (PATH_WIDTH * 0.5 / l)
+		var a0 := Vector3(a.x + n.x, PATH_Y, a.y + n.y)
+		var a1 := Vector3(a.x - n.x, PATH_Y, a.y - n.y)
+		var b1 := Vector3(b.x - n.x, PATH_Y, b.y - n.y)
+		var b0 := Vector3(b.x + n.x, PATH_Y, b.y + n.y)
+		_quad_vertex(a0, Vector2(dist, 0))
+		_quad_vertex(a1, Vector2(dist, 1))
+		_quad_vertex(b1, Vector2(dist + l, 1))
+		_quad_vertex(a0, Vector2(dist, 0))
+		_quad_vertex(b1, Vector2(dist + l, 1))
+		_quad_vertex(b0, Vector2(dist + l, 0))
 		dist += l
+		a = b
 	_path_mesh.surface_end()
+
+
+func _quad_vertex(v: Vector3, uv: Vector2) -> void:
+	_path_mesh.surface_set_uv(uv)
+	_path_mesh.surface_add_vertex(v)
 
 
 func _clear_path_mesh() -> void:

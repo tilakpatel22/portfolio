@@ -35,6 +35,7 @@ var _level_label: Label
 var _mods_box: HBoxContainer
 var _calm_btn: Button
 var _calm_bar: ProgressBar
+var _calm_active := false
 var _buoy_box: HBoxContainer
 var _buoy_label: Label
 var _screen := ""
@@ -134,7 +135,7 @@ func show_menu() -> void:
 	gear.pressed.connect(show_settings)
 	_corner(m, gear, Control.PRESET_TOP_RIGHT, Vector2(-40, 40))
 	_show("menu", m)
-	K.pop_in.call_deferred(play)
+	K.pop_in(play)
 
 
 func _bob(c: Control) -> void:
@@ -213,6 +214,15 @@ func _build_hud() -> void:
 	_buoy_label = K.label("x0", 40)
 	_buoy_box.add_child(_buoy_label)
 	_corner(_hud, _buoy_box, Control.PRESET_BOTTOM_RIGHT, Vector2(-40, -36))
+	_passthrough(_hud)
+
+
+## Only real buttons may catch touches on the HUD; everything else lets drags reach the sea.
+func _passthrough(node: Node) -> void:
+	for c in node.get_children():
+		if c is Control and not c is Button:
+			(c as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_passthrough(c)
 
 
 func _refresh_lifebuoys() -> void:
@@ -235,6 +245,7 @@ func show_hud(data: LevelData) -> void:
 	var names := {"RUSH": ["RUSH HOUR", K.ORANGE], "FOG": ["SEA FOG", K.GREY], "CURRENT": ["STRONG CURRENT", K.GREEN]}
 	for mod in data.modifiers:
 		var p := K.pill(names[mod][1], 24)
+		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		p.add_child(K.label(names[mod][0], 30, Color.WHITE, 8))
 		_mods_box.add_child(p)
 	_fog.visible = data.has_mod("FOG")
@@ -262,8 +273,9 @@ func _on_progress(docked: int, target: int) -> void:
 func _on_calm(active: bool, charge: float) -> void:
 	_calm_bar.value = charge
 	_calm_btn.disabled = active or charge < 1.0
-	var t := create_tween()
-	t.tween_property(_calm_tint, "color:a", 0.16 if active else 0.0, 0.3)
+	if active != _calm_active:
+		_calm_active = active
+		create_tween().tween_property(_calm_tint, "color:a", 0.16 if active else 0.0, 0.3)
 
 
 func _intro_banner(data: LevelData) -> void:
@@ -308,7 +320,7 @@ func _new_vessel_card(type: int) -> void:
 	v.add_child(ok)
 	_corner(dim, card, Control.PRESET_CENTER, Vector2.ZERO)
 	_show("intro_card", dim)
-	K.pop_in.call_deferred(card)
+	K.pop_in(card)
 
 
 func _vessel_preview(type: int) -> SubViewportContainer:
@@ -322,7 +334,7 @@ func _vessel_preview(type: int) -> SubViewportContainer:
 	box.add_child(vp)
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = 2.0 + VesselData.info(type)["length"] * 0.55
+	cam.size = 1.3 + VesselData.info(type)["length"] * 0.42
 	cam.position = Vector3(0, 3.2, 3.4)
 	cam.rotation_degrees.x = -42
 	vp.add_child(cam)
@@ -400,7 +412,7 @@ func show_pause() -> void:
 	v.add_child(row)
 	_corner(dim, card, Control.PRESET_CENTER, Vector2.ZERO)
 	_show("pause", dim)
-	K.pop_in.call_deferred(card)
+	K.pop_in(card)
 
 
 func show_complete(level: int, stars: int) -> void:
@@ -429,7 +441,7 @@ func show_complete(level: int, stars: int) -> void:
 	v.add_child(next)
 	_corner(dim, card, Control.PRESET_CENTER, Vector2.ZERO)
 	_show("complete", dim)
-	K.pop_in.call_deferred(card)
+	K.pop_in(card)
 
 
 func show_failed(docked: int, target: int, can_revive: bool) -> void:
@@ -447,7 +459,10 @@ func show_failed(docked: int, target: int, can_revive: bool) -> void:
 			revive_pressed.emit())
 		v.add_child(revive)
 		v.add_child(K.label("Watch a short video for one more chance", 34, Color("5a6b7d"), 0))
-		_bob(revive)
+		revive.resized.connect(func() -> void: revive.pivot_offset = revive.size * 0.5, CONNECT_ONE_SHOT)
+		var pulse := revive.create_tween().set_loops()
+		pulse.tween_property(revive, "scale", Vector2(1.05, 1.05), 0.6).set_trans(Tween.TRANS_SINE)
+		pulse.tween_property(revive, "scale", Vector2.ONE, 0.6).set_trans(Tween.TRANS_SINE)
 	var retry := K.button("TRY AGAIN", K.ORANGE, Vector2(500, 140), 60, "res://assets/ui/restart.svg")
 	retry.pressed.connect(retry_pressed.emit)
 	v.add_child(retry)
@@ -456,7 +471,7 @@ func show_failed(docked: int, target: int, can_revive: bool) -> void:
 	v.add_child(home)
 	_corner(dim, card, Control.PRESET_CENTER, Vector2.ZERO)
 	_show("failed", dim)
-	K.pop_in.call_deferred(card)
+	K.pop_in(card)
 
 
 # --- Settings & rating -------------------------------------------------------------
@@ -483,7 +498,11 @@ func show_settings() -> void:
 	var card := K.card()
 	var v := K.vbox(24)
 	card.add_child(v)
-	v.add_child(K.label("SETTINGS", 80, Color.WHITE, 22))
+	var header := K.hbox(20)
+	var title := K.label("SETTINGS", 80, Color.WHITE, 22)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(title)
+	v.add_child(header)
 	v.add_child(_toggles())
 	var rate := K.button("RATE US", K.ORANGE, Vector2(520, 116), 48, "res://assets/ui/star.svg")
 	rate.pressed.connect(GameState.open_store)
@@ -498,12 +517,10 @@ func show_settings() -> void:
 	v.add_child(K.label("Version " + str(ProjectSettings.get_setting("application/config/version")), 30, Color("7b8ea3"), 0))
 	var close := K.icon_button("res://assets/ui/close.svg", K.RED, 96)
 	close.pressed.connect(show_menu)
+	header.add_child(close)
 	_corner(dim, card, Control.PRESET_CENTER, Vector2.ZERO)
-	card.add_child(close)
-	close.size_flags_horizontal = Control.SIZE_SHRINK_END
-	close.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_show("settings", dim)
-	K.pop_in.call_deferred(card)
+	K.pop_in(card)
 
 
 ## Opt-in rewarded ad offer (AdMob policy: rewarded ads must be user-initiated).
@@ -534,7 +551,7 @@ func show_reward_offer(watch: Callable, skip: Callable) -> void:
 	v.add_child(row)
 	_corner(dim, card, Control.PRESET_CENTER, Vector2.ZERO)
 	_show("reward", dim)
-	K.pop_in.call_deferred(card)
+	K.pop_in(card)
 
 
 func show_rate(then: Callable) -> void:
@@ -563,4 +580,4 @@ func show_rate(then: Callable) -> void:
 	v.add_child(row)
 	_corner(dim, card, Control.PRESET_CENTER, Vector2.ZERO)
 	_show("rate", dim)
-	K.pop_in.call_deferred(card)
+	K.pop_in(card)

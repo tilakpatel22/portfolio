@@ -175,6 +175,8 @@ static func icon(path: String, size := 96) -> TextureRect:
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	t.custom_minimum_size = Vector2(size, size)
+	t.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	return t
 
 
@@ -189,6 +191,7 @@ static func dimmer(alpha := 0.45) -> ColorRect:
 
 static func pop_in(c: Control) -> void:
 	c.pivot_offset = c.size * 0.5
+	c.resized.connect(func() -> void: c.pivot_offset = c.size * 0.5)
 	c.scale = Vector2(0.6, 0.6)
 	c.modulate.a = 0.0
 	var t := c.create_tween().set_parallel()
