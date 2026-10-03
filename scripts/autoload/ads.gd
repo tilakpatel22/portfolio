@@ -1,5 +1,7 @@
 extends Node
 ## AdMob: UMP consent -> init -> preload interstitial + rewarded ads.
+## Rated for all ages (3+): every request is child-directed, under the age of consent and
+## G-rated, so ads are never personalized and never use the advertising ID (COPPA / Families).
 ## Interstitial: at level transitions. Rewarded: opt-in "Bonus Lifebuoy" every 5 levels.
 
 const INTERSTITIAL_ID := "ca-app-pub-1155049195805321/9701390845"
@@ -39,7 +41,9 @@ func _unit(kind: String) -> String:
 
 
 func _request_consent() -> void:
-	UserMessagingPlatform.consent_information.update(ConsentRequestParameters.new(),
+	var params := ConsentRequestParameters.new()
+	params.tag_for_under_age_of_consent = true
+	UserMessagingPlatform.consent_information.update(params,
 		_on_consent_info, func(_e: FormError) -> void: _init_sdk())
 
 
@@ -59,6 +63,11 @@ func _init_sdk() -> void:
 	if _initialized:
 		return
 	_initialized = true
+	var config := RequestConfiguration.new()
+	config.tag_for_child_directed_treatment = RequestConfiguration.TagForChildDirectedTreatment.TRUE
+	config.tag_for_under_age_of_consent = RequestConfiguration.TagForUnderAgeOfConsent.TRUE
+	config.max_ad_content_rating = RequestConfiguration.MAX_AD_CONTENT_RATING_G
+	MobileAds.set_request_configuration(config)
 	var listener := OnInitializationCompleteListener.new()
 	listener.on_initialization_complete = func(_s: InitializationStatus) -> void:
 		_load("inter")

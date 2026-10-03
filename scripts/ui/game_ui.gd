@@ -505,10 +505,10 @@ func show_settings() -> void:
 	v.add_child(header)
 	v.add_child(_toggles())
 	var rate := K.button("RATE US", K.ORANGE, Vector2(520, 116), 48, "res://assets/ui/star.svg")
-	rate.pressed.connect(GameState.open_store)
+	rate.pressed.connect(func() -> void: _parent_gate(GameState.open_store))
 	v.add_child(rate)
 	var privacy := K.button("PRIVACY POLICY", K.BLUE, Vector2(520, 104), 40, "res://assets/ui/doc.svg")
-	privacy.pressed.connect(func() -> void: OS.shell_open(GameState.PRIVACY_URL))
+	privacy.pressed.connect(func() -> void: _parent_gate(func() -> void: OS.shell_open(GameState.PRIVACY_URL)))
 	v.add_child(privacy)
 	if Ads.privacy_options_required():
 		var consent := K.button("AD PRIVACY OPTIONS", K.BLUE, Vector2(520, 104), 38, "res://assets/ui/shield.svg")
@@ -554,6 +554,41 @@ func show_reward_offer(watch: Callable, skip: Callable) -> void:
 	K.pop_in(card)
 
 
+## Parental gate (all-ages app): links that leave the game open only after a grown-up check.
+func _parent_gate(on_pass: Callable, on_cancel := Callable()) -> void:
+	var a := randi_range(6, 9)
+	var b := randi_range(3, 9)
+	var answer := a * b
+	var options := [answer, answer + randi_range(1, 5), answer - randi_range(1, 5)]
+	options.shuffle()
+	var dim := K.dimmer(0.6)
+	var card := K.card()
+	var v := K.vbox(22)
+	card.add_child(v)
+	v.add_child(K.label("ASK A GROWN-UP", 64, K.ORANGE, 18))
+	v.add_child(K.label("What is %d x %d ?" % [a, b], 56, K.INK, 0))
+	var row := K.hbox(20)
+	for option: int in options:
+		var pick := K.button(str(option), K.BLUE, Vector2(170, 120), 56)
+		pick.pressed.connect(func() -> void:
+			dim.queue_free()
+			if option == answer:
+				on_pass.call()
+			elif on_cancel.is_valid():
+				on_cancel.call())
+		row.add_child(pick)
+	v.add_child(row)
+	var cancel := K.button("CANCEL", K.GREY, Vector2(300, 100), 40)
+	cancel.pressed.connect(func() -> void:
+		dim.queue_free()
+		if on_cancel.is_valid():
+			on_cancel.call())
+	v.add_child(cancel)
+	_overlay.add_child(dim)
+	_corner(dim, card, Control.PRESET_CENTER, Vector2.ZERO)
+	K.pop_in(card)
+
+
 func show_rate(then: Callable) -> void:
 	var dim := K.dimmer()
 	var card := K.card()
@@ -573,8 +608,9 @@ func show_rate(then: Callable) -> void:
 		GameState.save()
 		then.call())
 	rate.pressed.connect(func() -> void:
-		GameState.open_store()
-		then.call())
+		_parent_gate(func() -> void:
+			GameState.open_store()
+			then.call(), then))
 	row.add_child(later)
 	row.add_child(rate)
 	v.add_child(row)

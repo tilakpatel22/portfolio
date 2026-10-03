@@ -22,7 +22,9 @@ Become the harbor master! Ships of every kind are sailing in from the open sea, 
 
 **Category:** Game → Casual (or Puzzle) · **Tags:** simulation, puzzle, ships, traffic control
 
-**Content rating:** Everyone (no violence; contains ads)
+**Content rating:** Everyone / PEGI 3 (no violence; contains ads)
+
+**Target audience (Play Console):** all ages incl. under 13 (Families policy). Ads are child-directed, G-rated, no advertising ID.
 
 **Ads:** Yes (AdMob) · **In-app purchases:** No
 
@@ -32,6 +34,5 @@ Become the harbor master! Ships of every kind are sailing in from the open sea, 
 **Graphics:** icon `store/icon_512.png` (512×512). Feature graphic 1024×500 and phone screenshots: capture from the game (or ask Claude to render them).
 
 **Data safety form (Play Console):**
-- Data collected: Device or other IDs (advertising ID) — collected by Google AdMob for advertising/analytics; shared with Google.
-- Data is encrypted in transit: Yes (AdMob). Users can request deletion: via Google ad settings.
-- The game itself stores progress only on the device.
+- Collected by Google AdMob (shared with Google, for advertising and fraud prevention): approximate location (from IP), app interactions, diagnostics, device or other IDs (app set ID). Advertising ID: not used.
+- Encrypted in transit: Yes. The game itself stores progress only on the device.
