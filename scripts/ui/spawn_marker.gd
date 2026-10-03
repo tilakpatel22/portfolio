@@ -38,4 +38,5 @@ func _draw() -> void:
 	draw_arc(Vector2.ZERO, r + 22.0 + fmod(_t * 60.0, 30.0), 0.0, TAU, 40, Color(color, 0.6 - fmod(_t * 60.0, 30.0) / 50.0), 5.0, true)
 	var d := Vector2.from_angle(angle)
 	var n := d.orthogonal()
-	draw_colored_polygon(PackedVector2Array([d * (r * 0.62), -d * r * 0.35 + n * r * 0.45, -d * r * 0.1, -d * r * 0.35 - n * r * 0.45]), Color.WHITE)
+	var arrow := Color("0b2545") if color.get_luminance() > 0.8 else Color.WHITE   # visible on white (tug) markers
+	draw_colored_polygon(PackedVector2Array([d * (r * 0.62), -d * r * 0.35 + n * r * 0.45, -d * r * 0.1, -d * r * 0.35 - n * r * 0.45]), arrow)
