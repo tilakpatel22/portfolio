@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 GODOT="${GODOT:-godot}"
 OUT=build/media
-mkdir -p "$OUT" store/video store/screenshots
+mkdir -p "$OUT" store/video store/screenshots && touch build/.gdignore
 RUN=()
 if [ -z "${DISPLAY:-}" ] && command -v xvfb-run >/dev/null; then
 	RUN=(xvfb-run -a -s "-screen 0 1920x1080x24")
