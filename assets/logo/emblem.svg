@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="620" viewBox="0 0 600 620">
+  <defs>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5fe3d4"/><stop offset="0.55" stop-color="#1aa7c9"/><stop offset="1" stop-color="#0a5f8a"/>
+    </linearGradient>
+    <clipPath id="disc"><circle cx="300" cy="300" r="215.0"/></clipPath>
+  </defs>
+  <circle cx="300" cy="314.0" r="260.0" fill="#0b2545" opacity="0.35"/>
+  <circle cx="300" cy="300" r="260.0" fill="#0b2545"/>
+  <circle cx="300" cy="300" r="250.0" fill="#fff3d9"/>
+  <line x1="300.0" y1="78.8" x2="300.0" y2="56.2" stroke="#0b2545" stroke-width="9.0" stroke-linecap="round"/><line x1="344.4" y1="76.9" x2="346.6" y2="65.8" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="387.1" y1="89.8" x2="391.4" y2="79.4" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="426.4" y1="110.8" x2="432.6" y2="101.5" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="460.9" y1="139.1" x2="468.8" y2="131.2" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="489.2" y1="173.6" x2="498.5" y2="167.4" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="510.2" y1="212.9" x2="520.6" y2="208.6" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="523.1" y1="255.6" x2="534.2" y2="253.4" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="521.2" y1="300.0" x2="543.8" y2="300.0" stroke="#0b2545" stroke-width="9.0" stroke-linecap="round"/><line x1="523.1" y1="344.4" x2="534.2" y2="346.6" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="510.2" y1="387.1" x2="520.6" y2="391.4" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="489.2" y1="426.4" x2="498.5" y2="432.6" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="460.9" y1="460.9" x2="468.8" y2="468.8" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="426.4" y1="489.2" x2="432.6" y2="498.5" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="387.1" y1="510.2" x2="391.4" y2="520.6" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="344.4" y1="523.1" x2="346.6" y2="534.2" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="300.0" y1="521.2" x2="300.0" y2="543.8" stroke="#0b2545" stroke-width="9.0" stroke-linecap="round"/><line x1="255.6" y1="523.1" x2="253.4" y2="534.2" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="212.9" y1="510.2" x2="208.6" y2="520.6" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="173.6" y1="489.2" x2="167.4" y2="498.5" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="139.1" y1="460.9" x2="131.2" y2="468.8" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="110.8" y1="426.4" x2="101.5" y2="432.6" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="89.8" y1="387.1" x2="79.4" y2="391.4" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="76.9" y1="344.4" x2="65.8" y2="346.6" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="78.8" y1="300.0" x2="56.2" y2="300.0" stroke="#0b2545" stroke-width="9.0" stroke-linecap="round"/><line x1="76.9" y1="255.6" x2="65.8" y2="253.4" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="89.8" y1="212.9" x2="79.4" y2="208.6" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="110.8" y1="173.6" x2="101.5" y2="167.4" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="139.1" y1="139.1" x2="131.2" y2="131.2" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="173.6" y1="110.8" x2="167.4" y2="101.5" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="212.9" y1="89.8" x2="208.6" y2="79.4" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/><line x1="255.6" y1="76.9" x2="253.4" y2="65.8" stroke="#0b2545" stroke-width="5.0" stroke-linecap="round"/>
+  <circle cx="300" cy="300" r="223.0" fill="#0b2545"/>
+  <g clip-path="url(#disc)">
+    <circle cx="300" cy="300" r="215.0" fill="url(#sea)"/>
+    <circle cx="187.5" cy="187.5" r="125.0" fill="#ffffff" opacity="0.12"/>
+    <path d="M 50.0 405.0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 V 550.0 H 50.0 Z" fill="#0b2545" opacity="0.28"/><path d="M 50.0 455.0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 q 27.5 -12.5 55.0 0 V 550.0 H 50.0 Z" fill="#0b2545" opacity="0.3"/>
+    <path d="M 315.0 270.0 Q 360.0 135.0 412.5 210.0" fill="none" stroke="#ffffff" stroke-width="14.0" stroke-linecap="round" stroke-dasharray="1.0 30.0"/><path d="M 391.2 202.9 L 439.2 230.9 L 391.2 258.9 Z" fill="#ff7a59" stroke="#ffffff" stroke-width="8.0" stroke-linejoin="round" transform="rotate(82.5 415.2 230.9)"/>
+    <circle cx="425.0" cy="305.0" r="67.5" fill="#ffd23f" opacity="0.35"/>
+    <circle cx="425.0" cy="305.0" r="50.0" fill="#ffd23f" stroke="#0b2545" stroke-width="8.0"/>
+    <g fill="none" stroke="#0b2545" stroke-width="7.0" stroke-linecap="round">
+      <circle cx="425.0" cy="280.0" r="8.0"/>
+      <path d="M 425.0 288.0 V 336.0 M 408.0 299.0 H 442.0 M 397.0 315.0 Q 425.0 352.5 453.0 315.0"/>
+    </g>
+    <g stroke="#0b2545" stroke-width="9.0" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M 92.0 350.0 L 328.0 350.0 L 302.0 408.0 L 118.0 408.0 Z" fill="#ff7a59"/>
+      <path d="M 100.0 372.0 L 322.0 372.0" stroke="#d9563a" stroke-width="7.0"/>
+      <rect x="114.0" y="306.0" width="52.0" height="44.0" rx="5.0" fill="#2ec4b6"/>
+      <rect x="166.0" y="306.0" width="52.0" height="44.0" rx="5.0" fill="#ffd23f"/>
+      <rect x="140.0" y="264.0" width="52.0" height="42.0" rx="5.0" fill="#ff7a59"/>
+      <rect x="232.0" y="258.0" width="72.0" height="92.0" rx="8.0" fill="#fff3d9"/>
+      <rect x="246.0" y="210.0" width="26.0" height="48.0" rx="5.0" fill="#ffd23f"/>
+      <path d="M 244.0 282.0 L 292.0 282.0" stroke="#0b2545" stroke-width="11.0"/>
+    </g>
+  </g></svg>

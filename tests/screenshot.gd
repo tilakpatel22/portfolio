@@ -58,6 +58,9 @@ func _run(mode: String, level: int, secs: float, out: String) -> void:
 					v.snap_to(port)
 					break
 		await create_timer(0.3).timeout
+		if OS.get_cmdline_user_args().has("clean"):
+			main.ui.visible = false   # marketing shots: world only, no HUD
+			await create_timer(0.2).timeout
 	var img := root.get_viewport().get_texture().get_image()
 	img.save_png(out)
 	print("saved ", out)

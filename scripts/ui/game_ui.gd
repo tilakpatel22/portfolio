@@ -118,10 +118,13 @@ func show_menu() -> void:
 	m.set_anchors_preset(Control.PRESET_FULL_RECT)
 	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var title := K.vbox(-18)
-	title.add_child(K.label("SHIP TRAFFIC", 132, Color.WHITE, 30))
-	title.add_child(K.label("CONTROL SIM", 104, K.ORANGE, 28))
-	_corner(m, title, Control.PRESET_CENTER_TOP, Vector2(0, 70))
+	var title := TextureRect.new()
+	title.texture = load("res://assets/logo/logo_horizontal.png")
+	title.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	title.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	title.custom_minimum_size = Vector2(1100, 319)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_corner(m, title, Control.PRESET_CENTER_TOP, Vector2(0, 46))
 
 	var play := K.button("PLAY", K.ORANGE, Vector2(560, 170), 84, "res://assets/ui/play.svg")
 	play.pressed.connect(play_pressed.emit)

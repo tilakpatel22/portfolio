@@ -42,5 +42,6 @@ If you enjoy boat games, port management, traffic control or casual puzzle simul
 
 ## Graphics
 - App icon: `store/icon_512.png` (512 x 512)
-- Feature graphic: 1024 x 500 (to be created)
+- Feature graphic: `store/feature_graphic_1024x500.png`
+- Logos: `assets/logo/` (stacked, horizontal, emblem; SVG + PNG)
 - Phone screenshots: at least 2, landscape 1920 x 1080
