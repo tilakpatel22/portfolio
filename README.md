@@ -5,7 +5,7 @@ Draw routes from ships to matching ports, avoid collisions, and clear endless pr
 
 - Package: `io.github.tilakpatel22.shiptrafficcontrolsim`
 - Game design and level algorithm: [DESIGN.md](DESIGN.md)
-- Privacy policy: [store/privacy-policy.html](https://tilakpatel22.github.io/portfolio/store/privacy-policy.html)
+- Privacy policy: https://tdpzoide.blogspot.com/2026/10/ship-traffic-control-simulator-privacy.html
 - Play Store listing text: [store/listing.md](store/listing.md)
 
 ## Open and run

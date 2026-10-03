@@ -28,8 +28,7 @@ Become the harbor master! Ships of every kind are sailing in from the open sea, 
 
 **Ads:** Yes (AdMob) · **In-app purchases:** No
 
-**Privacy policy URL:** https://tilakpatel22.github.io/portfolio/store/privacy-policy.html
-(served by GitHub Pages from the main branch)
+**Privacy policy URL:** https://tdpzoide.blogspot.com/2026/10/ship-traffic-control-simulator-privacy.html
 
 **Graphics:** icon `store/icon_512.png` (512×512). Feature graphic 1024×500 and phone screenshots: capture from the game (or ask Claude to render them).
 

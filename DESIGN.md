@@ -83,4 +83,4 @@ Island shape: `r(θ) = R · (1 + Σ aₖ·sin(kθ + φₖ))` for k = 2, 3, 5, th
 - Interstitial `ca-app-pub-1155049195805321/9701390845`, shown when the player taps **Next**.
 - Debug builds use Google test IDs automatically.
 - UMP consent (GDPR) runs on launch; "Privacy options" appears in Settings when required.
-- Privacy policy page ships in `store/privacy-policy.html`.
+- Privacy policy (Gamecept Studios): https://tdpzoide.blogspot.com/2026/10/ship-traffic-control-simulator-privacy.html
