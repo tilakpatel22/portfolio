@@ -77,7 +77,6 @@ func _studio_intro() -> void:
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	logo.custom_minimum_size = Vector2(1000, 760)
-	card.add_child(logo)
 	_root.add_child(card)
 	_corner(card, logo, Control.PRESET_CENTER, Vector2.ZERO)
 	var t := create_tween()

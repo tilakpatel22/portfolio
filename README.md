@@ -19,6 +19,17 @@ Draw routes from ships to matching ports, avoid collisions, and clear endless pr
    Debug builds always use Google test ads; release builds use the real AdMob IDs.
 4. Sign release builds with your upload keystore (Export → Keystore → Release).
 
+## Slim engine (smaller download)
+Release builds use a size-optimized Godot 4.7.2 Android template, `export/android_source_slim.zip`
+(Compatibility renderer only; no physics, navigation, XR, networking or video modules), plus R8.
+Download size on a 64-bit phone: about 19 MB (stock template: about 45 MB). To rebuild the template:
+```
+git clone --depth 1 --branch 4.7.2-stable https://github.com/godotengine/godot && cd godot
+scons platform=android target=template_release arch=arm32 profile=../export/godot_slim_profile.py
+scons platform=android target=template_release arch=arm64 profile=../export/godot_slim_profile.py generate_android_binaries=yes
+cp bin/android_source.zip ../export/android_source_slim.zip
+```
+
 ## Tests (headless)
 ```
 godot --headless --path . -s tests/test_generator.gd     # level generator, 150 levels
