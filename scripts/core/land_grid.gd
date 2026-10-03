@@ -3,9 +3,9 @@ extends RefCounted
 ## Rasterized land mask + distance-to-land field on the XZ plane (Vector2(x, z)).
 
 const CELL := 0.25
-const ORIGIN := Vector2(-24.0, -15.0)
+const ORIGIN := Vector2(-24.0, -16.5)
 const W := 192
-const H := 120
+const H := 132
 const MAX_DIST := 8.0
 
 var land := PackedByteArray()
@@ -127,12 +127,21 @@ func flood(from: Vector2, clearance: float) -> PackedByteArray:
 		var i := queue[head]
 		head += 1
 		var x := i % W
-		var y := i / W
-		for n in [i - 1 if x > 0 else -1, i + 1 if x < W - 1 else -1, i - W if y > 0 else -1, i + W if y < H - 1 else -1]:
-			if n >= 0 and not seen[n] and dist[n] >= clearance:
-				seen[n] = 1
-				queue.append(n)
+		if x > 0:
+			_visit(i - 1, clearance, seen, queue)
+		if x < W - 1:
+			_visit(i + 1, clearance, seen, queue)
+		if i >= W:
+			_visit(i - W, clearance, seen, queue)
+		if i < W * (H - 1):
+			_visit(i + W, clearance, seen, queue)
 	return seen
+
+
+func _visit(n: int, clearance: float, seen: PackedByteArray, queue: PackedInt32Array) -> void:
+	if not seen[n] and dist[n] >= clearance:
+		seen[n] = 1
+		queue.append(n)
 
 
 func reached(mask: PackedByteArray, p: Vector2) -> bool:

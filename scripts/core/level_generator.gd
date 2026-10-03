@@ -18,8 +18,79 @@ static func is_peak(level: int) -> bool:
 	return level >= 5 and level % 5 == 0
 
 
+## Generated levels are cached (retry / menu -> play are instant) and can be built on a
+## worker thread (generate_async / prefetch) so transitions never freeze the frame.
+const CACHE_SIZE := 4
+static var _cache := {}
+static var _order: Array[int] = []
+static var _tasks := {}
+static var _results := {}
+static var _mutex := Mutex.new()
+
+
 static func generate(level: int) -> LevelData:
 	level = maxi(level, 1)
+	if _cache.has(level):
+		return _cache[level]
+	if _tasks.has(level):
+		WorkerThreadPool.wait_for_task_completion(_tasks[level])
+		return _take(level)
+	return _store(level, _build(level))
+
+
+static func generate_async(level: int, tree: SceneTree) -> LevelData:
+	level = maxi(level, 1)
+	if _cache.has(level):
+		return _cache[level]
+	prefetch(level)
+	var id: int = _tasks[level]
+	while not WorkerThreadPool.is_task_completed(id):
+		await tree.process_frame
+	if _cache.has(level):   # another caller may have collected it meanwhile
+		return _cache[level]
+	WorkerThreadPool.wait_for_task_completion(id)
+	return _take(level)
+
+
+## Starts building a level in the background (e.g. the next level while this one is played).
+static func prefetch(level: int) -> void:
+	level = maxi(level, 1)
+	if _cache.has(level) or _tasks.has(level):
+		return
+	_tasks[level] = WorkerThreadPool.add_task(_work.bind(level), false, "level %d" % level)
+
+
+static func clear_cache() -> void:
+	_cache.clear()
+	_order.clear()
+
+
+static func _work(level: int) -> void:
+	var d := _build(level)
+	_mutex.lock()
+	_results[level] = d
+	_mutex.unlock()
+
+
+static func _take(level: int) -> LevelData:
+	_tasks.erase(level)
+	_mutex.lock()
+	var d: LevelData = _results.get(level)
+	_results.erase(level)
+	_mutex.unlock()
+	return _store(level, d if d else _build(level))
+
+
+static func _store(level: int, d: LevelData) -> LevelData:
+	_cache[level] = d
+	_order.erase(level)
+	_order.append(level)
+	while _order.size() > CACHE_SIZE:
+		_cache.erase(_order.pop_front())
+	return d
+
+
+static func _build(level: int) -> LevelData:
 	for attempt in MAX_ATTEMPTS:
 		var data := _try(level, attempt, false)
 		if data:
@@ -256,8 +327,11 @@ static func _place_gates(d: LevelData, rng: RandomNumberGenerator) -> bool:
 				_:
 					p = Vector2(PF.end.x, PF.position.y + u)
 					inward = Vector2.LEFT
-			if _lane_open(d.grid, p, inward):
-				cands.append({"pos": p, "dir": inward})
+			# Final entry heading (slightly toward the centre); the lane is checked along it.
+			var to_center: Vector2 = (PF.get_center() - p).normalized()
+			var dir := (inward * 0.75 + to_center * 0.25).normalized().rotated(rng.randf_range(-0.2, 0.2))
+			if _lane_open(d.grid, p, dir):
+				cands.append({"pos": p, "dir": dir})
 			u += 1.0
 	if cands.size() < 2:
 		return false
@@ -276,19 +350,18 @@ static func _place_gates(d: LevelData, rng: RandomNumberGenerator) -> bool:
 		if best_d < 7.0:
 			break
 		chosen.append(best)
-	for g in chosen:
-		var to_center: Vector2 = (PF.get_center() - g["pos"]).normalized()
-		g["dir"] = ((g["dir"] as Vector2) * 0.75 + to_center * 0.25).normalized().rotated(rng.randf_range(-0.2, 0.2))
 	d.gates = chosen
 	return chosen.size() >= 2
 
 
-static func _lane_open(grid: LandGrid, p: Vector2, inward: Vector2) -> bool:
-	for t in [-6.0, -4.5, -3.0]:
-		if grid.distance(p + inward * t) < 0.8:
+## The whole entry line must be open water: from the farthest off-screen spawn point on
+## ultra-wide / tablet screens, through the screen edge, to well inside the playfield.
+static func _lane_open(grid: LandGrid, p: Vector2, dir: Vector2) -> bool:
+	for t in [-9.0, -7.5, -6.0, -4.5, -3.0]:
+		if grid.distance(p + dir * t) < 0.8:
 			return false
 	for t in [-1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5]:
-		if grid.distance(p + inward * t) < 1.4:
+		if grid.distance(p + dir * t) < 1.4:
 			return false
 	return true
 

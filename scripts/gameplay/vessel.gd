@@ -29,6 +29,10 @@ var gate := -1
 var can_surface := Callable()   # set by Game: surfacing is delayed while another hull is on top
 var _slide := 0.0                 # which way to slide along a coast (sticky)
 var _corridor := 0.0              # which way to run along an edge/coast corridor (sticky)
+var _slide_clear := 0.0           # how long the coast has been out of sight
+var _uturn := 0.0                 # committed side for a U-turn (sticky)
+var _stuck_time := 0.0
+var _stuck_from := Vector2.ZERO
 var hold := false                 # set by Game: wait off-screen while the entry lane is occupied
 
 var _model: MeshInstance3D
@@ -61,6 +65,7 @@ func setup(p_type: int, p_pos: Vector2, p_heading: Vector2, speed_mult: float) -
 	half_len = info["length"] * 0.5
 	half_w = info["width"] * 0.5
 	pos = p_pos
+	_stuck_from = p_pos
 	heading = p_heading.normalized()
 	_sub_timer = randf_range(4.0, 6.0)
 	_build()
@@ -201,8 +206,9 @@ func _follow(step: float) -> void:
 
 
 ## Free sailing: screen edges push the heading back into view (they always win);
-## land ahead makes the ship slide ALONG the coast (sticky side), so it can never be
-## pinned between an island and the edge or dither left/right.
+## land ahead makes the ship slide ALONG the coast; an edge/coast squeeze makes it run
+## along the corridor. Every choice is sticky (hysteresis) so ships never dither, and a
+## watchdog re-aims any ship that stops making progress.
 func _steer(dt: float, grid: LandGrid, bounds: Rect2) -> void:
 	if not entered:
 		return
@@ -223,15 +229,18 @@ func _steer(dt: float, grid: LandGrid, bounds: Rect2) -> void:
 		var d := grid.distance(probe)
 		if d < clear:
 			away += _land_normal(grid, probe) * (clear - d) / clear
+	_watchdog(dt, grid, bounds)
 	var desired := heading
-	if edge != Vector2.ZERO and away != Vector2.ZERO and edge.normalized().dot(away.normalized()) < -0.3:
+	var squeeze := 2.0   # no squeeze unless both an edge and a coast push
+	if edge != Vector2.ZERO and away != Vector2.ZERO:
+		squeeze = edge.normalized().dot(away.normalized())
+	if squeeze < (0.0 if _corridor != 0.0 else -0.3):
 		# Squeezed between the screen edge and a coast: run along the corridor,
-		# reversing at a dead end, instead of being pushed back and forth.
+		# reversing at a dead end (coast or screen corner).
 		var t := edge.orthogonal().normalized()
 		if _corridor == 0.0:
 			_corridor = 1.0 if t.dot(heading) >= 0.0 else -1.0
 		else:
-			# Dead end (coast or screen corner) ahead: turn around and run the other way.
 			var ahead := pos + t * _corridor * (half_len + 1.0)
 			if grid.distance(ahead) < clear or not bounds.grow(-half_w).has_point(ahead):
 				_corridor = -_corridor
@@ -239,29 +248,65 @@ func _steer(dt: float, grid: LandGrid, bounds: Rect2) -> void:
 	else:
 		_corridor = 0.0
 		if away != Vector2.ZERO:
+			_slide_clear = 0.0
 			var n := away.normalized()
 			if _slide == 0.0:
 				var ref := edge if edge != Vector2.ZERO else heading
 				_slide = 1.0 if n.orthogonal().dot(ref) >= 0.0 else -1.0
 			desired = (n.orthogonal() * _slide + n * 0.6).normalized()
 		else:
-			_slide = 0.0
+			_slide_clear += dt
+			if _slide_clear > 0.6:   # keep the chosen side until the coast is well behind
+				_slide = 0.0
 		if edge != Vector2.ZERO:
 			desired = (desired + edge * 3.0).normalized()
 	var a := heading.angle_to(desired)
+	if absf(a) < PI * 0.5:
+		_uturn = 0.0
 	if absf(a) < 0.0001:
 		return
-	if absf(a) > PI - 0.05:
-		a = PI   # dead ahead into a wall: commit to one side instead of dithering
+	if absf(a) > PI - 0.5:
+		# (Nearly) dead ahead into a wall: commit to the side with more open water.
+		if _uturn == 0.0:
+			var look := half_len + 1.5
+			var l := _openness(grid, bounds, pos + heading.rotated(-1.2) * look)
+			var r := _openness(grid, bounds, pos + heading.rotated(1.2) * look)
+			_uturn = -1.0 if l > r else 1.0
+		a = _uturn * PI
 	heading = heading.rotated(clampf(a, -TURN_RATE * dt, TURN_RATE * dt)).normalized()
 
 
-## Hard limit: a free-sailing ship is always pulled back into view (faster than it can sail out).
+func _openness(grid: LandGrid, bounds: Rect2, p: Vector2) -> float:
+	return grid.distance(p) - (3.0 if not bounds.grow(-half_len).has_point(p) else 0.0)
+
+
+## Safety net: a free-sailing ship that has not really moved for 2 s is re-aimed at open water.
+func _watchdog(dt: float, grid: LandGrid, bounds: Rect2) -> void:
+	_stuck_time += dt
+	if _stuck_time < 2.0:
+		return
+	if pos.distance_to(_stuck_from) < 0.35 * speed * 2.0:
+		var to_center := (bounds.get_center() - pos).normalized()
+		heading = (to_center + _land_normal(grid, pos) * 0.5).normalized()
+		_slide = 0.0
+		_corridor = 0.0
+		_uturn = 0.0
+	_stuck_time = 0.0
+	_stuck_from = pos
+
+
+## Hard limit: a free-sailing ship is always pulled back into view (faster than it can sail out),
+## and any heading component pointing further out is reflected.
 func _keep_in(bounds: Rect2, dt: float) -> void:
 	var inner := bounds.grow(-half_w)
 	var inside := pos.clamp(inner.position, inner.end)
-	if inside != pos:
-		pos = pos.move_toward(inside, (speed + 0.5) * dt * 1.5)
+	if inside == pos:
+		return
+	pos = pos.move_toward(inside, (speed + 0.5) * dt * 1.5)
+	if (pos.x < inner.position.x and heading.x < 0.0) or (pos.x > inner.end.x and heading.x > 0.0):
+		heading.x = -heading.x
+	if (pos.y < inner.position.y and heading.y < 0.0) or (pos.y > inner.end.y and heading.y > 0.0):
+		heading.y = -heading.y
 
 
 ## Direction pointing away from the nearest land (gradient of the distance field).

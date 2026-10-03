@@ -72,13 +72,21 @@ func _process(delta: float) -> void:
 
 # --- Transitions -----------------------------------------------------------------
 
+## Fade to the sea-blue curtain, await `mid` (may generate a level on a worker thread), fade back.
 func fade(mid: Callable) -> void:
 	_fade.mouse_filter = Control.MOUSE_FILTER_STOP
 	var t := create_tween()
 	t.tween_property(_fade, "color:a", 1.0, 0.25)
-	t.tween_callback(mid)
-	t.tween_property(_fade, "color:a", 0.0, 0.35)
-	t.tween_callback(func() -> void: _fade.mouse_filter = Control.MOUSE_FILTER_IGNORE)
+	await t.finished
+	await mid.call()
+	var back := create_tween()
+	back.tween_property(_fade, "color:a", 0.0, 0.35)
+	await back.finished
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func is_menu() -> bool:
+	return _screen == "menu"
 
 
 func hide_overlays() -> void:
@@ -360,9 +368,12 @@ func _vessel_preview(type: int) -> SubViewportContainer:
 
 # --- Spawn warnings & tutorial ---------------------------------------------------
 
-func _on_spawn_warning(gate_pos: Vector2, gate_dir: Vector2, color: Color, duration: float) -> void:
+func _on_spawn_warning(gate: int, gate_pos: Vector2, gate_dir: Vector2, color: Color, duration: float) -> void:
 	var m := SpawnMarker.new()
 	m.color = color
+	m.game = game
+	m.gate = gate
+	m.min_time = duration
 	var vp := _root.get_viewport_rect().size
 	var p := game.screen_point(gate_pos)
 	var into := game.screen_point(gate_pos + gate_dir) - p
@@ -371,10 +382,6 @@ func _on_spawn_warning(gate_pos: Vector2, gate_dir: Vector2, color: Color, durat
 	if m.position.x < 280 and m.position.y > vp.y - 300:
 		m.position.x = 280.0
 	_markers.add_child(m)
-	var t := m.create_tween()
-	t.tween_interval(duration)
-	t.tween_property(m, "modulate:a", 0.0, 0.3)
-	t.tween_callback(m.queue_free)
 
 
 func _clear_markers() -> void:

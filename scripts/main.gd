@@ -77,24 +77,34 @@ func _fit_camera() -> void:
 	game.visible_rect = r
 
 
+## Transitions freeze the old level first (nothing can crash or spend a lifebuoy during the
+## fade), build the new level on a worker thread, and only then unpause.
 func go_menu() -> void:
-	get_tree().paused = false
-	Audio.set_muffled(false)
+	game.halt()
 	_playing = false
-	ui.fade(func() -> void:
-		game.load_level(GameState.level, true)
-		ui.show_menu())
+	Audio.set_muffled(false)
 	Audio.play_music("menu")
+	ui.fade(func() -> void:
+		var level: int = GameState.level
+		var data := await LevelGenerator.generate_async(level, get_tree())
+		game.load_level(level, true, data)
+		get_tree().paused = false
+		ui.show_menu())
 
 
 func start_level() -> void:
-	get_tree().paused = false
+	game.halt()
+	_playing = false
 	Audio.set_muffled(false)
-	ui.fade(func() -> void:
-		game.load_level(GameState.level)
-		_playing = true
-		ui.show_hud(game.data))
 	Audio.play_music(Audio.track_for_level(GameState.level, LevelGenerator.is_peak(GameState.level)))
+	ui.fade(func() -> void:
+		var level: int = GameState.level
+		var data := await LevelGenerator.generate_async(level, get_tree())
+		game.load_level(level, false, data)
+		get_tree().paused = false
+		_playing = true
+		ui.show_hud(game.data)
+		LevelGenerator.prefetch(level + 1))   # next level is ready before the player finishes
 
 
 func _on_won() -> void:
@@ -144,11 +154,13 @@ func _watch_reward() -> void:
 func pause() -> void:
 	if _playing and game.mode == Game.Mode.PLAY and not get_tree().paused:
 		get_tree().paused = true
+		game.cancel_touches()   # a finger held while pausing must not hijack paths later
 		Audio.set_muffled(true)
 		ui.show_pause()
 
 
 func resume() -> void:
+	game.cancel_touches()
 	get_tree().paused = false
 	Audio.set_muffled(false)
 	ui.hide_overlays()
@@ -171,8 +183,8 @@ func _notification(what: int) -> void:
 			if not ui.back():
 				if _playing:
 					pause()
-				else:
-					get_tree().quit()
+				elif ui.is_menu():
+					get_tree().quit()   # only the main menu exits the app
 		NOTIFICATION_WM_CLOSE_REQUEST:
 			GameState.save()
 			get_tree().quit()

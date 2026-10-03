@@ -34,7 +34,7 @@ func _run() -> void:
 	gs.lifebuoys = 0
 	gs.intro_seen = 99999
 	_test_generator(60 if _quick else 300)
-	var levels := [1, 4, 9, 14, 22, 37, 61] if _quick else [1, 2, 4, 6, 9, 12, 14, 17, 22, 26, 33, 41, 55, 70, 95]
+	var levels := [1, 4, 10, 14, 22, 37, 61] if _quick else [1, 2, 4, 6, 9, 10, 12, 14, 17, 22, 26, 30, 33, 41, 55, 58, 60, 70, 95]
 	_test_free_sailing(levels)
 	_test_guided(levels)
 	await _test_spawn_fairness(levels)
@@ -102,8 +102,10 @@ func _signature(d: LevelData) -> String:
 
 func _setup_level(level: int) -> void:
 	game.process_mode = Node.PROCESS_MODE_DISABLED
+	LevelGenerator.clear_cache()
 	game.load_level(level)
 	game.data.max_active = 0
+	LevelGenerator.clear_cache()   # the mutated level must not be reused later
 
 
 func _bounds() -> Rect2:
@@ -315,7 +317,7 @@ func _test_spawn_fairness(levels: Array) -> void:
 func _test_flows() -> void:
 	print("[E] flows: lifebuoy, revive, calm, reload safety")
 	main.start_level()
-	await create_timer(0.8).timeout
+	await create_timer(1.6).timeout
 	# Lifebuoy: crash consumes it and play continues.
 	_force_two_ships()
 	gs.lifebuoys = 1
@@ -333,7 +335,7 @@ func _test_flows() -> void:
 	_check(game.mode == 2 and not game.can_revive(), "second revive must not be allowed")
 	# Calm resets on reload.
 	main.start_level()
-	await create_timer(0.8).timeout
+	await create_timer(1.6).timeout
 	_check(game.activate_calm(), "calm could not be activated")
 	_check(not game.activate_calm(), "calm activated twice")
 	game.load_level(game.data.level)

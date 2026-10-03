@@ -5,7 +5,7 @@ extends Node3D
 signal progress_changed(docked: int, target: int)
 signal level_won
 signal level_lost
-signal spawn_warning(gate_pos: Vector2, gate_dir: Vector2, color: Color, duration: float)
+signal spawn_warning(gate: int, gate_pos: Vector2, gate_dir: Vector2, color: Color, duration: float)
 signal first_vessel(vessel: Vessel, port: Port)
 signal calm_changed(active: bool, charge: float)
 signal crashed
@@ -53,12 +53,12 @@ func _ready() -> void:
 	add_child(world)
 
 
-func load_level(level: int, attract := false) -> void:
+func load_level(level: int, attract := false, prepared: LevelData = null) -> void:
 	for v in vessels:
 		v.queue_free()
 	vessels.clear()
 	_touches.clear()
-	data = LevelGenerator.generate(level)
+	data = prepared if prepared else LevelGenerator.generate(level)
 	world.build(data)
 	_rng.seed = data.rng_seed
 	docked = 0
@@ -81,6 +81,34 @@ func load_level(level: int, attract := false) -> void:
 	mode = Mode.ATTRACT if attract else Mode.PLAY
 	_spawn_timer = 0.5 if attract else 1.2
 	progress_changed.emit(docked, data.target)
+
+
+## Freezes the current level immediately (before a transition): nothing moves, crashes or
+## spawns, and any delayed win/lose/spawn coroutine is invalidated.
+func halt() -> void:
+	mode = Mode.OVER
+	_epoch += 1
+	cancel_touches()
+
+
+## True while a ship for this sea lane is still waiting to appear (keeps its warning marker up).
+func gate_waiting(gate: int) -> bool:
+	if _pending_gates.has(gate):
+		return true
+	for v in vessels:
+		if v.gate == gate and not v.entered:
+			return true
+	return false
+
+
+## Drops every active finger (pause, revive, transitions): ships are deselected cleanly.
+func cancel_touches() -> void:
+	for v in _touches.values():
+		if is_instance_valid(v):
+			v.set_selected(false)
+	_touches.clear()
+	if world:
+		_refresh_port_highlights()
 
 
 func max_active() -> int:
@@ -207,7 +235,7 @@ func _queue_spawn(gate: int, type: int) -> void:
 	var epoch := _epoch
 	var warn := 0.0 if mode == Mode.ATTRACT else data.warn_time
 	if warn > 0.0:
-		spawn_warning.emit(g["pos"], g["dir"], VesselData.port_color(VesselData.port_of(type)), warn)
+		spawn_warning.emit(gate, g["pos"], g["dir"], VesselData.port_color(VesselData.port_of(type)), warn)
 		Audio.play("warning")
 	await get_tree().create_timer(warn, false).timeout
 	if epoch != _epoch:
@@ -278,24 +306,39 @@ func _check_collisions() -> void:
 	Audio.set_tension(1.0 if not warned.is_empty() else 0.0)
 
 
-## Ships still off-screen wait while an on-screen ship sits in their entry lane,
-## so nothing ever sails into view straight into a collision.
+## Ships still off-screen wait while any on-screen ship is in - or about to cross - their
+## entry lane (its course over the next few seconds is checked), so nothing ever sails
+## into view straight into a collision.
 func _update_entry_holds() -> void:
 	for v in vessels:
 		if v.entered or not v.path.is_empty():
 			v.hold = false
 			continue
 		var a := v.pos
-		var b := v.pos + v.heading * (v.half_len + 4.5)
+		var b := v.pos + v.heading * (v.half_len + v.speed * 3.0 + 2.0)
 		v.hold = false
 		for u in vessels:
 			if u == v or not u.entered or u.state != Vessel.State.SAILING:
 				continue
-			var c := u.capsule()
-			var pts := Geometry2D.get_closest_points_between_segments(a, b, c[0], c[1])
-			if pts[0].distance_to(pts[1]) < v.half_w + c[2] + 0.8:
+			var tail := u.pos - u.heading * u.half_len
+			var ahead := _course_point(u, 2.5) + u.heading * u.half_len
+			var pts := Geometry2D.get_closest_points_between_segments(a, b, tail, ahead)
+			if pts[0].distance_to(pts[1]) < v.half_w + u.half_w + 1.2:
 				v.hold = true
 				break
+
+
+## Where a ship will roughly be in `seconds` (along its drawn path, or straight ahead).
+func _course_point(u: Vessel, seconds: float) -> Vector2:
+	var left := u.speed * seconds
+	var at := u.pos
+	for p in u.path:
+		var d := at.distance_to(p)
+		if d >= left:
+			return at.move_toward(p, left)
+		left -= d
+		at = p
+	return at + u.heading * left
 
 
 func _can_surface(sub: Vessel) -> bool:
@@ -343,6 +386,7 @@ func can_revive() -> bool:
 ## Rewarded continue (once per level): wreckage is cleared and play resumes.
 func revive() -> void:
 	revive_used = true
+	cancel_touches()
 	_clear_wreck(_crashed)
 	_crashed.clear()
 	grace = 1.5
@@ -353,6 +397,8 @@ func revive() -> void:
 	_spawn_timer = maxf(_spawn_timer, 2.0)
 	Audio.set_calm(calm_left > 0.0)
 	mode = Mode.PLAY
+	if docked >= data.target:
+		_win()
 
 
 ## Lifebuoy: both ships are towed away and the level continues.
@@ -377,6 +423,8 @@ func _clear_wreck(wreck: Array) -> void:
 		if wreck.has(v):
 			gone.append(v)
 			continue
+		if v.state != Vessel.State.SAILING:
+			continue   # already sliding into a berth: let it finish and count
 		for w in wreck:
 			if is_instance_valid(w) and v.pos.distance_to(w.pos) < v.half_len + w.half_len + 0.3:
 				gone.append(v)
@@ -394,26 +442,38 @@ func _clear_wreck(wreck: Array) -> void:
 
 func _on_docked(v: Vessel) -> void:
 	vessels.erase(v)
+	for i in _touches.keys():
+		if _touches[i] == v:
+			_touches.erase(i)
 	if v.target:
 		v.target.celebrate()
 		add_child(Effects.popup("+1", Vector3(v.target.dock.x, 0.8, v.target.dock.y), v.target.color))
 	v.queue_free()
-	if mode != Mode.PLAY:
+	var revivable := mode == Mode.OVER and not _crashed.is_empty()
+	if mode != Mode.PLAY and not revivable:
 		return
+	# A ship that was already sliding into its berth when a crash happened still counts
+	# (it matters if the player continues with a rewarded revive).
 	docked += 1
 	GameState.add_docked()
+	progress_changed.emit(docked, data.target)
+	if revivable:
+		return
 	Audio.play("dock", 0.0, [1.0, 1.12, 0.89, 1.26, 0.79, 1.19, 1.5][v.target.port_class if v.target else 6])
 	GameState.vibrate(30)
-	progress_changed.emit(docked, data.target)
 	if docked >= data.target:
-		mode = Mode.OVER
-		Audio.set_tension(0.0)
-		Audio.set_calm(false)
-		Audio.stinger("win")
-		var epoch := _epoch
-		await get_tree().create_timer(0.8).timeout
-		if epoch == _epoch:
-			level_won.emit()
+		_win()
+
+
+func _win() -> void:
+	mode = Mode.OVER
+	Audio.set_tension(0.0)
+	Audio.set_calm(false)
+	Audio.stinger("win")
+	var epoch := _epoch
+	await get_tree().create_timer(0.8).timeout
+	if epoch == _epoch:
+		level_won.emit()
 
 
 func _tutorial() -> void:
@@ -436,6 +496,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_touch_start(event.index, ground_point(event.position))
+		elif event.canceled:
+			_touch_cancel(event.index)
 		else:
 			_touch_end(event.index)
 	elif event is InputEventScreenDrag:
@@ -462,9 +524,21 @@ func _touch_start(index: int, p: Vector2) -> void:
 	get_viewport().set_input_as_handled()
 
 
+func _touch_cancel(index: int) -> void:
+	var v = _touches.get(index)
+	_touches.erase(index)
+	if is_instance_valid(v):
+		v.set_selected(false)
+	_refresh_port_highlights()
+
+
 func _touch_move(index: int, p: Vector2) -> void:
-	var v: Vessel = _touches.get(index)
-	if v == null or v.state != Vessel.State.SAILING or v.target != null:
+	var entry = _touches.get(index)
+	if not is_instance_valid(entry):
+		_touches.erase(index)
+		return
+	var v: Vessel = entry
+	if v.state != Vessel.State.SAILING or v.target != null:
 		return
 	var last := v.last_point()
 	if last.distance_to(p) < POINT_STEP or v.path.size() >= MAX_PATH_POINTS:
@@ -504,7 +578,7 @@ func _try_snap(v: Vessel, p: Vector2) -> bool:
 ## Paths keep the whole hull off the beach (wide ships need more room), but are never
 ## stricter than the water the path starts from, so a ship hugging a coast can always be routed.
 func _clearance(v: Vessel, from: Vector2) -> float:
-	return minf(maxf(PATH_CLEARANCE, v.half_w * 0.85), data.grid.distance(from) - 0.01)
+	return maxf(0.1, minf(maxf(PATH_CLEARANCE, v.half_w * 0.85), data.grid.distance(from) - 0.01))
 
 
 ## Light low-pass on the newest points so finger jitter never shows up as zig-zags.
@@ -515,10 +589,12 @@ func _smooth_tail(v: Vessel) -> void:
 
 
 func _touch_end(index: int) -> void:
-	var v: Vessel = _touches.get(index)
+	var entry = _touches.get(index)
 	_touches.erase(index)
-	if v == null:
+	if not is_instance_valid(entry):
+		_refresh_port_highlights()
 		return
+	var v: Vessel = entry
 	v.set_selected(false)
 	if v.target == null and not v.path.is_empty() and v.state == Vessel.State.SAILING:
 		var end := v.last_point()
@@ -532,8 +608,8 @@ func _touch_end(index: int) -> void:
 
 func _refresh_port_highlights() -> void:
 	var wanted := {}
-	for v: Vessel in _touches.values():
-		if v.target == null:
+	for v in _touches.values():
+		if is_instance_valid(v) and v.target == null:
 			wanted[v.port] = true
 	for port in world.ports:
 		var on := false

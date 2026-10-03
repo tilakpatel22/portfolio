@@ -26,6 +26,11 @@ godot --headless --path . -s tests/mechanics_test.gd     # mechanics stress test
 godot --headless --path . -s tests/autoplay.gd -- 1 5    # autopilot plays levels via touch input
 ```
 
+## Marketing media
+`tools/make_media.sh` records a 30 s high-rush gameplay video (`store/video/gameplay_30s.mp4`) and
+captioned Play Store screenshots (`store/screenshots/`) from real gameplay, played automatically by
+`tools/showcase.tscn` through real touch input. Logos and icons: `python3 tools/make_logo.py`.
+
 ## Assets
 - Music and sound effects are synthesized by `tools/gen_audio.py` (original, royalty-free).
 - 3D models are procedural (`scripts/world/ship_models.gd`); fonts: Lilita One and Fredoka (SIL OFL).
