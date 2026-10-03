@@ -31,9 +31,9 @@ func _ready() -> void:
 	_request_consent()
 
 
-## Debug builds always use Google's test units to protect the AdMob account.
+## Debug builds (and the "test_ads" export) always use Google's test units to protect the AdMob account.
 func _unit(kind: String) -> String:
-	if OS.is_debug_build():
+	if OS.is_debug_build() or OS.has_feature("test_ads"):
 		return TEST_INTERSTITIAL_ID if kind == "inter" else TEST_REWARDED_ID
 	return INTERSTITIAL_ID if kind == "inter" else REWARDED_ID
 

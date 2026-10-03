@@ -230,8 +230,11 @@ func _steer(dt: float, grid: LandGrid, bounds: Rect2) -> void:
 		var t := edge.orthogonal().normalized()
 		if _corridor == 0.0:
 			_corridor = 1.0 if t.dot(heading) >= 0.0 else -1.0
-		elif grid.distance(pos + t * _corridor * (half_len + 1.0)) < clear:
-			_corridor = -_corridor
+		else:
+			# Dead end (coast or screen corner) ahead: turn around and run the other way.
+			var ahead := pos + t * _corridor * (half_len + 1.0)
+			if grid.distance(ahead) < clear or not bounds.grow(-half_w).has_point(ahead):
+				_corridor = -_corridor
 		desired = t * _corridor
 	else:
 		_corridor = 0.0

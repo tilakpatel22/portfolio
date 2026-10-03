@@ -355,6 +355,7 @@ func _test_flows() -> void:
 
 
 func _force_two_ships() -> void:
+	game.grace = 0.0   # a previous lifebuoy/revive grants collision immunity; clear it for the test
 	for v in game.vessels:
 		v.queue_free()
 	game.vessels.clear()
