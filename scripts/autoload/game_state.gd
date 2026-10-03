@@ -6,7 +6,7 @@ signal settings_changed
 const SAVE_PATH := "user://save.cfg"
 const PACKAGE := "io.github.tilakpatel22.shiptrafficcontrolsim"
 const STORE_URL := "https://play.google.com/store/apps/details?id=" + PACKAGE
-const PRIVACY_URL := "https://tilakpatel22.github.io/portfolio/ship-traffic-controller/store/privacy-policy.html"
+const PRIVACY_URL := "https://tilakpatel22.github.io/portfolio/store/privacy-policy.html"
 const RATE_AFTER_LEVEL := 4
 
 var level := 1
