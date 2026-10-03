@@ -1,0 +1,65 @@
+# MIT License
+
+# Copyright (c) 2023-present Poing Studios
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+class_name MobileSingletonPlugin
+
+
+static func _get_plugin(plugin_name: String, is_required := true) -> Object:
+	if Engine.has_singleton(plugin_name):
+		return Engine.get_singleton(plugin_name)
+
+	var os_name := OS.get_name()
+	if os_name != "Android" and os_name != "iOS":
+		if OS.has_feature("editor"):
+			var MockFactory = load("res://addons/admob/internal/mock/mock_admob_factory.gd")
+			if MockFactory:
+				return MockFactory.get_mock_plugin(plugin_name)
+		return null
+
+	var location := (
+		"Project Settings (admob/general/android/enabled) and 'Use Gradle Build' is enabled in the Export Preset"
+		if os_name == "Android"
+		else "Project Settings (admob/general/ios/enabled)"
+	)
+	var message := (
+		"[AdMob] Native plugin '%s' not found. Make sure it is enabled in %s."
+		% [plugin_name, location]
+	)
+
+	if is_required:
+		printerr(message)
+	else:
+		push_warning(message)
+
+	return null
+
+
+static func safe_connect(
+	plugin: Object, signal_name: String, callable: Callable, flags := 0
+) -> void:
+	if plugin and not plugin.is_connected(signal_name, callable):
+		plugin.connect(signal_name, callable, flags)
+
+
+static func safe_disconnect(plugin: Object, signal_name: String, callable: Callable) -> void:
+	if plugin and plugin.is_connected(signal_name, callable):
+		plugin.disconnect(signal_name, callable)
