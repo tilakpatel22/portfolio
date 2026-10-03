@@ -97,6 +97,7 @@ func _process(dt: float) -> void:
 	var bounds := visible_rect.intersection(LevelData.PLAYFIELD.grow(1.0))
 	# Sub-step on frame hitches so fast ships can never tunnel through each other.
 	var steps := clampi(ceili(sim / (1.0 / 50.0)), 1, 4)
+	_update_entry_holds()
 	for _s in steps:
 		for v in vessels:
 			v.tick(sim / steps, data.grid, data.current, bounds)
@@ -275,6 +276,26 @@ func _check_collisions() -> void:
 			close_calls += 1
 		v.set_warning(warned.has(v))
 	Audio.set_tension(1.0 if not warned.is_empty() else 0.0)
+
+
+## Ships still off-screen wait while an on-screen ship sits in their entry lane,
+## so nothing ever sails into view straight into a collision.
+func _update_entry_holds() -> void:
+	for v in vessels:
+		if v.entered or not v.path.is_empty():
+			v.hold = false
+			continue
+		var a := v.pos
+		var b := v.pos + v.heading * (v.half_len + 4.5)
+		v.hold = false
+		for u in vessels:
+			if u == v or not u.entered or u.state != Vessel.State.SAILING:
+				continue
+			var c := u.capsule()
+			var pts := Geometry2D.get_closest_points_between_segments(a, b, c[0], c[1])
+			if pts[0].distance_to(pts[1]) < v.half_w + c[2] + 0.8:
+				v.hold = true
+				break
 
 
 func _can_surface(sub: Vessel) -> bool:

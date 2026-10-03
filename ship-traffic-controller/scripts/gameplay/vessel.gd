@@ -28,6 +28,8 @@ var warning := false
 var gate := -1
 var can_surface := Callable()   # set by Game: surfacing is delayed while another hull is on top
 var _slide := 0.0                 # which way to slide along a coast (sticky)
+var _corridor := 0.0              # which way to run along an edge/coast corridor (sticky)
+var hold := false                 # set by Game: wait off-screen while the entry lane is occupied
 
 var _model: MeshInstance3D
 var _ring_mat := ShaderMaterial.new()
@@ -149,7 +151,7 @@ func _wake() -> CPUParticles3D:
 # --- Simulation --------------------------------------------------------------
 
 func tick(dt: float, grid: LandGrid, current: Vector2, bounds: Rect2) -> void:
-	if state != State.SAILING:
+	if state != State.SAILING or (hold and not entered and path.is_empty()):
 		return
 	if type == VesselData.Type.SUBMARINE:
 		_sub_timer -= dt
@@ -222,16 +224,27 @@ func _steer(dt: float, grid: LandGrid, bounds: Rect2) -> void:
 		if d < clear:
 			away += _land_normal(grid, probe) * (clear - d) / clear
 	var desired := heading
-	if away != Vector2.ZERO:
-		var n := away.normalized()
-		if _slide == 0.0:
-			var ref := edge if edge != Vector2.ZERO else heading
-			_slide = 1.0 if n.orthogonal().dot(ref) >= 0.0 else -1.0
-		desired = (n.orthogonal() * _slide + n * 0.6).normalized()
+	if edge != Vector2.ZERO and away != Vector2.ZERO and edge.normalized().dot(away.normalized()) < -0.3:
+		# Squeezed between the screen edge and a coast: run along the corridor,
+		# reversing at a dead end, instead of being pushed back and forth.
+		var t := edge.orthogonal().normalized()
+		if _corridor == 0.0:
+			_corridor = 1.0 if t.dot(heading) >= 0.0 else -1.0
+		elif grid.distance(pos + t * _corridor * (half_len + 1.0)) < clear:
+			_corridor = -_corridor
+		desired = t * _corridor
 	else:
-		_slide = 0.0
-	if edge != Vector2.ZERO:
-		desired = (desired + edge * 3.0).normalized()
+		_corridor = 0.0
+		if away != Vector2.ZERO:
+			var n := away.normalized()
+			if _slide == 0.0:
+				var ref := edge if edge != Vector2.ZERO else heading
+				_slide = 1.0 if n.orthogonal().dot(ref) >= 0.0 else -1.0
+			desired = (n.orthogonal() * _slide + n * 0.6).normalized()
+		else:
+			_slide = 0.0
+		if edge != Vector2.ZERO:
+			desired = (desired + edge * 3.0).normalized()
 	var a := heading.angle_to(desired)
 	if absf(a) < 0.0001:
 		return
