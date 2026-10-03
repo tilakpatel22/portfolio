@@ -14,13 +14,16 @@ if [ -z "${DISPLAY:-}" ] && command -v xvfb-run >/dev/null; then
 	RUN=(xvfb-run -a -s "-screen 0 1920x1080x24")
 fi
 GD=("${RUN[@]}" "$GODOT" --path . --rendering-driver opengl3 --resolution 1920x1080 --fixed-fps 30)
+# Record at full 1080p (the project's desktop window override is 720p).
+printf '[display]\n\nwindow/size/window_width_override=1920\nwindow/size/window_height_override=1080\n' > override.cfg
+trap 'rm -f override.cfg' EXIT
 
 echo "1/4 Recording 30 s showcase video (level 45, rush hour)..."
 "${GD[@]}" --write-movie "$OUT/raw.avi" res://tools/showcase.tscn -- \
 	--level=45 --length=30 --menu=2.5 --calm_at=14 --win_at=26.5 --shots=7,11,15.5,19,23,29 --prefix=v
 
 echo "2/4 Extra stills from other maps..."
-for L in 35 25 12; do
+for L in 20 30; do
 	"${GD[@]}" res://tools/showcase.tscn -- --level=$L --length=11 --menu=0.3 --calm_at=99 --win_at=99 --shots=10 --prefix=l$L
 done
 

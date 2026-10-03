@@ -5,13 +5,14 @@ extends Node
 ## Video:  godot --path . --write-movie build/media/raw.avi --fixed-fps 30 res://tools/showcase.tscn -- --level=45
 ## Stills: godot --path . --fixed-fps 30 res://tools/showcase.tscn -- --level=35 --length=14 --shots=12 --prefix=l35
 ## Options: --level --length --shots=a,b,c --prefix --menu (s on menu) --calm_at --win_at --out
+##          --ships (ships on screen at peak) --spawn (s between arrivals) --pace (s between routes)
 
 const HAND := preload("res://assets/ui/hand.svg")
 const PF := LevelData.PLAYFIELD
 const FINGERTIP := Vector2(0.46, 0.12)   # fingertip position inside the hand image (0..1)
 
 var cfg := {"level": 45, "length": 30.0, "shots": [], "prefix": "shot", "menu": 2.5,
-	"calm_at": 14.0, "win_at": 26.0, "out": "res://build/media"}
+	"calm_at": 14.0, "win_at": 26.0, "out": "res://build/media", "ships": 10.0, "spawn": 1.7, "pace": 0.7}
 var main: Node
 var game: Node
 var _hand: TextureRect
@@ -128,12 +129,14 @@ func _find_button(text: String) -> Button:
 func _populate() -> void:
 	_populated = true
 	var d = game.data
+	d.max_active = int(cfg.ships)          # peak traffic for the camera
+	d.spawn_interval = float(cfg.spawn)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var placed: Array[Vector2] = []
 	for v in game.vessels:
 		placed.append(v.pos)
-	var want: int = d.max_active - game.vessels.size()
+	var want: int = d.max_active - 1 - game.vessels.size()
 	var tries := 0
 	while want > 0 and tries < 400:
 		tries += 1
@@ -203,7 +206,7 @@ func _draw_route(v: Node, port: Node, route: PackedVector2Array) -> void:
 			await get_tree().process_frame
 	_touch(false, port.dock)
 	_hide_hand()
-	for _i in 6:
+	for _i in int(float(cfg.pace) * 30.0):   # let traffic build up between routes
 		await get_tree().process_frame
 	_busy = false
 

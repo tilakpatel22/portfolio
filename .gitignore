@@ -9,3 +9,4 @@
 *.keystore
 *.jks
 export_credentials.cfg
+override.cfg
